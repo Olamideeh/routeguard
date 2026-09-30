@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: routeguard-postgres
+    environment:
+      POSTGRES_DB: routeguard_db
+      POSTGRES_USER: routeguard_user
+      POSTGRES_PASSWORD: routeguard_password
+    ports:
+      - "5438:5432"
+    volumes:
+      - routeguard_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U routeguard_user -d routeguard_db
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  adminer:
+    image: adminer:latest
+    container_name: routeguard-adminer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8087:8080"
+
+volumes:
+  routeguard_postgres_data:
