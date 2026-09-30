@@ -8,22 +8,21 @@ import com.example.routeguard.enums.CompanyStatus;
 import com.example.routeguard.enums.DeliveryEventType;
 import com.example.routeguard.repository.DeliveryCompanyRepository;
 import com.example.routeguard.repository.DeliveryEventRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import jakarta.persistence.EntityManager;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:postgresql://localhost:5439/routeguard_test_db",
@@ -33,30 +32,31 @@ import static org.mockito.Mockito.*;
         "spring.flyway.enabled=false"
 })
 @ActiveProfiles("test")
-class WebhookIngestionConcurrencyTest {
+class WebhookIngestionRealCredentialConcurrencyTest {
 
     @Autowired
     private WebhookIngestionCoordinator ingestionCoordinator;
 
     @Autowired
-    private DeliveryCompanyRepository companyRepository;
-
-    @MockitoSpyBean
-    private DeliveryEventRepository eventRepository;
-
-    @MockitoBean
     private ApiCredentialService credentialService;
+
+    @Autowired
+    private DeliveryCompanyRepository companyRepository;
 
     @Autowired
     private EntityManager entityManager;
 
+    @MockitoSpyBean
+    private DeliveryEventRepository eventRepository;
+
     @Test
-    void simultaneousIdenticalRequestsCreateOneEventAndReturnReplay()
+    void simultaneousRequestsWithRealCredentialReturnSameEvent()
             throws Exception {
 
+        // Create an active company in the test database.
         DeliveryCompany company = companyRepository.saveAndFlush(
                 DeliveryCompany.builder()
-                        .name("Concurrency Test Company")
+                        .name("Real Credential Test Company")
                         .companyCode(
                                 "TEST-" + UUID.randomUUID()
                         )
@@ -65,11 +65,16 @@ class WebhookIngestionConcurrencyTest {
                         .build()
         );
 
+        // Generate a real API credential for this company.
+        String apiKey = credentialService
+                .createCredential(company.getId())
+                .apiKey();
+
         String idempotencyKey =
                 "concurrent-" + UUID.randomUUID();
 
         DeliveryEventRequest request = new DeliveryEventRequest(
-                "DEL-CONCURRENT-001",
+                "DEL-REAL-CONCURRENT-001",
                 DeliveryEventType.DELIVERED,
                 Instant.parse("2026-09-30T20:00:00Z"),
                 "RIDER-202",
@@ -84,34 +89,39 @@ class WebhookIngestionConcurrencyTest {
                 true
         );
 
-        when(credentialService.authenticateApiKey("test-api-key"))
-                .thenReturn(company);
-
         CyclicBarrier lookupBarrier = new CyclicBarrier(2);
         AtomicInteger lookupCount = new AtomicInteger();
 
-        // Both requests must complete the database lookup
-        // before either is allowed to continue.
+        // Perform a real database lookup, then pause the first
+        // two calls so both finish their lookup before saving.
         doAnswer(invocation -> {
             UUID requestedCompanyId = invocation.getArgument(0);
             String requestedKey = invocation.getArgument(1);
 
             Optional<DeliveryEvent> result = entityManager
                     .createQuery("""
-                    SELECT event
-                    FROM DeliveryEvent event
-                    WHERE event.company.id = :companyId
-                      AND event.idempotencyKey = :idempotencyKey
-                    """, DeliveryEvent.class)
-                    .setParameter("companyId", requestedCompanyId)
-                    .setParameter("idempotencyKey", requestedKey)
+                            SELECT event
+                            FROM DeliveryEvent event
+                            WHERE event.company.id = :companyId
+                              AND event.idempotencyKey = :idempotencyKey
+                            """, DeliveryEvent.class)
+                    .setParameter(
+                            "companyId",
+                            requestedCompanyId
+                    )
+                    .setParameter(
+                            "idempotencyKey",
+                            requestedKey
+                    )
                     .getResultList()
                     .stream()
                     .findFirst();
 
+            // A retry must proceed without waiting at the barrier.
             if (lookupCount.incrementAndGet() <= 2) {
                 lookupBarrier.await(10, TimeUnit.SECONDS);
             }
+
             return result;
         }).when(eventRepository)
                 .findByCompany_IdAndIdempotencyKey(
@@ -123,20 +133,21 @@ class WebhookIngestionConcurrencyTest {
                 Executors.newFixedThreadPool(2);
 
         try {
+            // Define the task using the real API key.
             Callable<DeliveryEventResponse> sendRequest =
                     () -> ingestionCoordinator.ingestEvent(
-                            "test-api-key",
+                            apiKey,
                             idempotencyKey,
                             request
                     );
 
+            // Run the same task on two worker threads.
             Future<DeliveryEventResponse> first =
                     executor.submit(sendRequest);
 
             Future<DeliveryEventResponse> second =
                     executor.submit(sendRequest);
 
-            // Check both results, even if one request fails.
             assertAll(
                     "Both concurrent requests must succeed",
                     () -> assertNotNull(
@@ -153,25 +164,35 @@ class WebhookIngestionConcurrencyTest {
             long storedEvents = eventRepository.findAll()
                     .stream()
                     .filter(event ->
-                            idempotencyKey.equals(
+                            company.getId().equals(
+                                    event.getCompany().getId()
+                            )
+                                    && idempotencyKey.equals(
                                     event.getIdempotencyKey()
                             )
                     )
                     .count();
 
             assertAll(
-                    () -> assertEquals(1L, storedEvents),
+                    () -> assertEquals(
+                            1L,
+                            storedEvents,
+                            "Only one event should be stored"
+                    ),
                     () -> assertEquals(
                             firstResponse.id(),
-                            secondResponse.id()
+                            secondResponse.id(),
+                            "Both responses should have the same event ID"
                     ),
                     () -> assertEquals(
                             firstResponse.reference(),
-                            secondResponse.reference()
+                            secondResponse.reference(),
+                            "Both responses should have the same reference"
                     ),
                     () -> assertNotEquals(
                             firstResponse.idempotentReplay(),
-                            secondResponse.idempotentReplay()
+                            secondResponse.idempotentReplay(),
+                            "One response should be new and the other a replay"
                     )
             );
         } finally {
