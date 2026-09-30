@@ -2,7 +2,7 @@ package com.example.routeguard.controller;
 
 import com.example.routeguard.dto.DeliveryEventRequest;
 import com.example.routeguard.dto.DeliveryEventResponse;
-import com.example.routeguard.service.WebhookIngestionService;
+import com.example.routeguard.service.WebhookIngestionCoordinator;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class DeliveryWebhookController {
 
-    private final WebhookIngestionService ingestionService;
+    private final WebhookIngestionCoordinator ingestionCoordinator;
 
     @PostMapping("/delivery-events")
     public ResponseEntity<DeliveryEventResponse>
@@ -29,7 +29,7 @@ public class DeliveryWebhookController {
             DeliveryEventRequest request
     ) {
         DeliveryEventResponse response =
-                ingestionService.ingestEvent(
+                ingestionCoordinator.ingestEvent(
                         apiKey,
                         idempotencyKey,
                         request
