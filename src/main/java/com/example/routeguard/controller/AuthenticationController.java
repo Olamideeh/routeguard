@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.routeguard.dto.BootstrapPlatformAdminRequest;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -41,5 +42,17 @@ public class AuthenticationController {
                 authenticationService.login(request);
 
         return ResponseEntity.ok(response);
+    }
+    @PostMapping("/platform-admin/bootstrap")
+    public ResponseEntity<UserResponse> bootstrapPlatformAdmin(
+            @Valid @RequestBody
+            BootstrapPlatformAdminRequest request
+    ) {
+        UserResponse response =
+                registrationService.bootstrapPlatformAdmin(request);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
 }

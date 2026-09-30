@@ -9,6 +9,8 @@ import com.example.routeguard.repository.DeliveryCompanyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.routeguard.exception.ResourceNotFoundException;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -60,5 +62,23 @@ public class DeliveryCompanyService {
                 company.getStatus(),
                 company.getCreatedAt()
         );
+    }
+    @Transactional
+    public CompanyResponse activateCompany(UUID companyId) {
+        DeliveryCompany company = companyRepository
+                .findById(companyId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Company not found with ID: "
+                                        + companyId
+                        )
+                );
+
+        company.setStatus(CompanyStatus.ACTIVE);
+
+        DeliveryCompany savedCompany =
+                companyRepository.save(company);
+
+        return mapToResponse(savedCompany);
     }
 }
