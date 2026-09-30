@@ -50,9 +50,14 @@ public class DeliveryEvaluationService {
             );
         }
 
+        if (event.getEventType() == DeliveryEventType.DELIVERY_FAILED) {
+            return evaluateFailedDelivery(event);
+        }
+
         if (event.getEventType() != DeliveryEventType.DELIVERED) {
             throw new IllegalArgumentException(
-                    "This evaluator currently supports only DELIVERED events"
+                    "Unsupported delivery event type: "
+                            + event.getEventType()
             );
         }
 
@@ -156,5 +161,62 @@ public class DeliveryEvaluationService {
         return reasons.stream()
                 .map(DecisionReasonCode::name)
                 .collect(Collectors.joining(", "));
+    }
+    private DeliveryEvaluation evaluateFailedDelivery(
+            DeliveryEvent event
+    ) {
+        Set<DecisionReasonCode> reasons =
+                EnumSet.noneOf(DecisionReasonCode.class);
+
+        boolean reasonMissing =
+                event.getFailureReason() == null
+                        || event.getFailureReason().isBlank();
+
+        boolean contactMissing =
+                !Boolean.TRUE.equals(
+                        event.getCustomerContactAttempted()
+                );
+
+        if (reasonMissing) {
+            reasons.add(DecisionReasonCode.FAILURE_REASON_MISSING);
+        }
+
+        if (contactMissing) {
+            reasons.add(DecisionReasonCode.CONTACT_ATTEMPT_MISSING);
+        }
+
+        EvaluationDecision decision;
+        RecoveryAction recoveryAction;
+        String explanation;
+
+        if (reasonMissing) {
+            decision = EvaluationDecision.REVIEW_REQUIRED;
+            recoveryAction = RecoveryAction.MANUAL_INVESTIGATION;
+            explanation = "Failed-delivery report is incomplete: "
+                    + describeReasons(reasons);
+        } else if (contactMissing) {
+            decision = EvaluationDecision.REVIEW_REQUIRED;
+            recoveryAction = RecoveryAction.CONTACT_CUSTOMER;
+            explanation = "A failure reason was supplied, but a "
+                    + "customer-contact attempt was not confirmed.";
+        } else {
+            // A reason and contact flag alone do not independently
+            // prove that the reported delivery failure is valid.
+            decision = EvaluationDecision.REVIEW_REQUIRED;
+            recoveryAction = RecoveryAction.MANUAL_INVESTIGATION;
+            reasons.add(DecisionReasonCode.INSUFFICIENT_EVIDENCE);
+            explanation = "A failure reason and customer-contact attempt "
+                    + "were recorded. Review is required to confirm "
+                    + "the failure and select a recovery action.";
+        }
+
+        return DeliveryEvaluation.builder()
+                .deliveryEvent(event)
+                .decision(decision)
+                .reasonCodes(reasons)
+                .recoveryAction(recoveryAction)
+                .riskScore(0)
+                .decisionExplanation(explanation)
+                .build();
     }
 }

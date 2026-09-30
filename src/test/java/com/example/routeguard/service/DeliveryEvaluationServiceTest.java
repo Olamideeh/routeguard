@@ -387,4 +387,146 @@ class DeliveryEvaluationServiceTest {
 
         verifyNoInteractions(gpsDistanceService);
     }
+    @Test
+    void failedDeliveryWithoutContactAttemptRequiresReview() {
+        DeliveryCompany company = new DeliveryCompany();
+        company.setId(UUID.randomUUID());
+
+        DeliveryEvent event = DeliveryEvent.builder()
+                .id(UUID.randomUUID())
+                .company(company)
+                .eventType(DeliveryEventType.DELIVERY_FAILED)
+                .eventTimestamp(Instant.now())
+                .failureReason("Customer unavailable")
+                .customerContactAttempted(false)
+                .build();
+
+        DeliveryEvaluation evaluation =
+                evaluationService.evaluate(event);
+
+        assertAll(
+                () -> assertEquals(
+                        EvaluationDecision.REVIEW_REQUIRED,
+                        evaluation.getDecision()
+                ),
+                () -> assertEquals(
+                        Set.of(
+                                DecisionReasonCode.CONTACT_ATTEMPT_MISSING
+                        ),
+                        evaluation.getReasonCodes()
+                ),
+                () -> assertEquals(
+                        RecoveryAction.CONTACT_CUSTOMER,
+                        evaluation.getRecoveryAction()
+                ),
+                () -> assertEquals(
+                        0,
+                        evaluation.getRiskScore()
+                ),
+                () -> assertNotNull(
+                        evaluation.getDecisionExplanation()
+                ),
+                () -> assertFalse(
+                        evaluation.getDecisionExplanation().isBlank()
+                )
+        );
+
+        verifyNoInteractions(
+                gpsDistanceService,
+                eventRepository
+        );
+    }
+    @Test
+    void failedDeliveryWithReasonAndContactStillRequiresReview() {
+        DeliveryCompany company = new DeliveryCompany();
+        company.setId(UUID.randomUUID());
+
+        DeliveryEvent event = DeliveryEvent.builder()
+                .id(UUID.randomUUID())
+                .company(company)
+                .eventType(DeliveryEventType.DELIVERY_FAILED)
+                .eventTimestamp(Instant.now())
+                .failureReason("Customer unavailable")
+                .customerContactAttempted(true)
+                .build();
+
+        DeliveryEvaluation evaluation =
+                evaluationService.evaluate(event);
+
+        assertAll(
+                () -> assertEquals(
+                        EvaluationDecision.REVIEW_REQUIRED,
+                        evaluation.getDecision()
+                ),
+                () -> assertEquals(
+                        Set.of(
+                                DecisionReasonCode.INSUFFICIENT_EVIDENCE
+                        ),
+                        evaluation.getReasonCodes()
+                ),
+                () -> assertEquals(
+                        RecoveryAction.MANUAL_INVESTIGATION,
+                        evaluation.getRecoveryAction()
+                ),
+                () -> assertEquals(
+                        0,
+                        evaluation.getRiskScore()
+                ),
+                () -> assertNull(
+                        evaluation.getGpsDistanceMetres()
+                ),
+                () -> assertNull(
+                        evaluation.getPhotoReused()
+                )
+        );
+
+        verifyNoInteractions(
+                gpsDistanceService,
+                eventRepository
+        );
+    }
+    @Test
+    void failedDeliveryWithMissingDetailsRequiresInvestigation() {
+        DeliveryCompany company = new DeliveryCompany();
+        company.setId(UUID.randomUUID());
+
+        DeliveryEvent event = DeliveryEvent.builder()
+                .id(UUID.randomUUID())
+                .company(company)
+                .eventType(DeliveryEventType.DELIVERY_FAILED)
+                .eventTimestamp(Instant.now())
+                .failureReason("   ")
+                .customerContactAttempted(null)
+                .build();
+
+        DeliveryEvaluation evaluation =
+                evaluationService.evaluate(event);
+
+        assertAll(
+                () -> assertEquals(
+                        EvaluationDecision.REVIEW_REQUIRED,
+                        evaluation.getDecision()
+                ),
+                () -> assertEquals(
+                        Set.of(
+                                DecisionReasonCode.FAILURE_REASON_MISSING,
+                                DecisionReasonCode.CONTACT_ATTEMPT_MISSING
+                        ),
+                        evaluation.getReasonCodes()
+                ),
+                () -> assertEquals(
+                        RecoveryAction.MANUAL_INVESTIGATION,
+                        evaluation.getRecoveryAction()
+                ),
+                () -> assertEquals(
+                        0,
+                        evaluation.getRiskScore()
+                )
+        );
+
+        verifyNoInteractions(
+                gpsDistanceService,
+                eventRepository
+        );
+    }
 }
