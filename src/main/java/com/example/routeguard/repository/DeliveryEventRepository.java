@@ -26,4 +26,9 @@ public interface DeliveryEventRepository
             UUID companyId,
             String externalDeliveryId
     );
+    boolean existsByCompany_IdAndProofPhotoHashAndIdNot(
+            UUID companyId,
+            String proofPhotoHash,
+            UUID eventId
+    );
 }
