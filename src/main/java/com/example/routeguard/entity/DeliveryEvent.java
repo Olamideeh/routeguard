@@ -64,6 +64,12 @@ public class DeliveryEvent {
     )
     private String idempotencyKey;
 
+    @Column(
+            name = "request_payload_hash",
+            length = 64
+    )
+    private String requestPayloadHash;
+
     @Enumerated(EnumType.STRING)
     @Column(
             name = "event_type",

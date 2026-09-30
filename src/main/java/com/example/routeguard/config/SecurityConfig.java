@@ -33,7 +33,8 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/error",
                                 "/api/v1/companies",
-                                "/api/v1/auth/**"
+                                "/api/v1/auth/**",
+                                "/api/v1/webhooks/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
