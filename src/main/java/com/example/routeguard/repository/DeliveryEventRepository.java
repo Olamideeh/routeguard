@@ -38,5 +38,8 @@ public interface DeliveryEventRepository
             UUID eventId,
             UUID companyId
     );
-
+    boolean existsByIdAndCompany_Id(
+            UUID eventId,
+            UUID companyId
+    );
 }
