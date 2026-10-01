@@ -31,3 +31,7 @@ build/
 
 ### VS Code ###
 .vscode/
+/routeguard-before-flyway.dump
+/routeguard-schema*.sql
+/startup-log.txt
+/startup-clean-log.txt
