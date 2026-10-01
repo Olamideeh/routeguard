@@ -93,4 +93,23 @@ public class DeliveryEventProcessingService {
                 evaluation.getEvaluatedAt()
         );
     }
+    @Transactional(readOnly = true)
+    public DeliveryEvaluationResponse getEvaluation(
+            UUID companyId,
+            UUID eventId
+    ) {
+        DeliveryEvaluation evaluation = evaluationRepository
+                .findByDeliveryEvent_IdAndDeliveryEvent_Company_Id(
+                        eventId,
+                        companyId
+                )
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Evaluation not found for delivery event: "
+                                        + eventId
+                        )
+                );
+
+        return mapToResponse(evaluation);
+    }
 }

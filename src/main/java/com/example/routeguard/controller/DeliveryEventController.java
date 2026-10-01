@@ -36,4 +36,24 @@ public class DeliveryEventController {
 
         return ResponseEntity.ok(response);
     }
+    @GetMapping("/{eventId}/evaluation")
+    @PreAuthorize(
+            "hasAnyRole('COMPANY_ADMIN', 'OPERATIONS_OFFICER', 'RISK_REVIEWER')"
+    )
+    public ResponseEntity<DeliveryEvaluationResponse> getEvaluation(
+            @PathVariable UUID eventId,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        UUID companyId = UUID.fromString(
+                jwt.getClaimAsString("companyId")
+        );
+
+        DeliveryEvaluationResponse response =
+                processingService.getEvaluation(
+                        companyId,
+                        eventId
+                );
+
+        return ResponseEntity.ok(response);
+    }
 }

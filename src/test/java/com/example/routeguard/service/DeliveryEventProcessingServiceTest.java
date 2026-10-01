@@ -297,4 +297,102 @@ class DeliveryEventProcessingServiceTest {
         verify(eventRepository, never())
                 .save(any(DeliveryEvent.class));
     }
+    @Test
+    void evaluationOutsideCompanyCannotBeRetrieved() {
+        UUID companyId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+
+        when(evaluationRepository
+                .findByDeliveryEvent_IdAndDeliveryEvent_Company_Id(
+                        eventId,
+                        companyId
+                ))
+                .thenReturn(Optional.empty());
+
+        ResourceNotFoundException exception = assertThrows(
+                ResourceNotFoundException.class,
+                () -> processingService.getEvaluation(
+                        companyId,
+                        eventId
+                )
+        );
+
+        assertEquals(
+                "Evaluation not found for delivery event: " + eventId,
+                exception.getMessage()
+        );
+
+        verifyNoInteractions(
+                eventRepository,
+                evaluationService
+        );
+
+        verify(evaluationRepository, never())
+                .save(any(DeliveryEvaluation.class));
+    }
+    @Test
+    void retrievalReturnsSavedEvaluationWithoutProcessing() {
+        UUID companyId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID evaluationId = UUID.randomUUID();
+
+        Instant evaluatedAt =
+                Instant.parse("2026-09-30T20:01:00Z");
+
+        DeliveryEvent event = DeliveryEvent.builder()
+                .id(eventId)
+                .reference("EVT-RETRIEVAL-001")
+                .status(EvaluationStatus.REVIEW_REQUIRED)
+                .build();
+
+        DeliveryEvaluation evaluation = DeliveryEvaluation.builder()
+                .id(evaluationId)
+                .deliveryEvent(event)
+                .decision(EvaluationDecision.REVIEW_REQUIRED)
+                .reasonCodes(
+                        Set.of(DecisionReasonCode.GPS_EVIDENCE_MISSING)
+                )
+                .recoveryAction(RecoveryAction.MANUAL_INVESTIGATION)
+                .riskScore(0)
+                .decisionExplanation("GPS evidence is missing.")
+                .evaluatedAt(evaluatedAt)
+                .build();
+
+        when(evaluationRepository
+                .findByDeliveryEvent_IdAndDeliveryEvent_Company_Id(
+                        eventId,
+                        companyId
+                ))
+                .thenReturn(Optional.of(evaluation));
+
+        DeliveryEvaluationResponse response =
+                processingService.getEvaluation(companyId, eventId);
+
+        assertAll(
+                () -> assertEquals(evaluationId, response.id()),
+                () -> assertEquals(eventId, response.deliveryEventId()),
+                () -> assertEquals(
+                        "EVT-RETRIEVAL-001",
+                        response.eventReference()
+                ),
+                () -> assertEquals(
+                        EvaluationDecision.REVIEW_REQUIRED,
+                        response.decision()
+                ),
+                () -> assertEquals(
+                        evaluation.getReasonCodes(),
+                        response.reasonCodes()
+                ),
+                () -> assertEquals(evaluatedAt, response.evaluatedAt()),
+                () -> assertEquals(
+                        EvaluationStatus.REVIEW_REQUIRED,
+                        event.getStatus()
+                )
+        );
+
+        verifyNoInteractions(eventRepository, evaluationService);
+
+        verify(evaluationRepository, never())
+                .save(any(DeliveryEvaluation.class));
+    }
 }

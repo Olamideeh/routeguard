@@ -11,4 +11,9 @@ public interface DeliveryEvaluationRepository
 
     Optional<DeliveryEvaluation>
     findByDeliveryEvent_Id(UUID deliveryEventId);
+    Optional<DeliveryEvaluation>
+    findByDeliveryEvent_IdAndDeliveryEvent_Company_Id(
+            UUID eventId,
+            UUID companyId
+    );
 }

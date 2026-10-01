@@ -38,4 +38,5 @@ public interface DeliveryEventRepository
             UUID eventId,
             UUID companyId
     );
+
 }
