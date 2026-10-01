@@ -10,4 +10,8 @@ public interface CompanyApiCredentialRepository
         extends JpaRepository<CompanyApiCredential, UUID> {
 
     Optional<CompanyApiCredential> findByKeyId(UUID keyId);
+    Optional<CompanyApiCredential> findByIdAndCompany_Id(
+            UUID credentialId,
+            UUID companyId
+    );
 }

@@ -36,4 +36,21 @@ public class ApiCredentialController {
                 .status(HttpStatus.CREATED)
                 .body(response);
     }
+    @DeleteMapping("/{credentialId}")
+    @PreAuthorize("hasRole('COMPANY_ADMIN')")
+    public ResponseEntity<Void> revokeCredential(
+            @PathVariable UUID credentialId,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        UUID companyId = UUID.fromString(
+                jwt.getClaimAsString("companyId")
+        );
+
+        credentialService.revokeCredential(
+                companyId,
+                credentialId
+        );
+
+        return ResponseEntity.noContent().build();
+    }
 }

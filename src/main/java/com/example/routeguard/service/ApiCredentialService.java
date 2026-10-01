@@ -178,4 +178,25 @@ public class ApiCredentialService {
 
         return hex.toString();
     }
+    @Transactional
+    public void revokeCredential(
+            UUID companyId,
+            UUID credentialId
+    ) {
+        CompanyApiCredential credential = credentialRepository
+                .findByIdAndCompany_Id(credentialId, companyId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "API credential not found with ID: "
+                                        + credentialId
+                        )
+                );
+
+        if (!credential.isActive()) {
+            return;
+        }
+
+        credential.setActive(false);
+        credentialRepository.save(credential);
+    }
 }
