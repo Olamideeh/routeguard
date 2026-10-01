@@ -8,6 +8,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import com.example.routeguard.dto.DeliveryEventPageResponse;
+import com.example.routeguard.enums.EvaluationStatus;
+import com.example.routeguard.service.DeliveryEventQueryService;
 
 import java.util.UUID;
 
@@ -16,6 +19,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class DeliveryEventController {
 
+    private final DeliveryEventQueryService queryService;
     private final DeliveryEventProcessingService processingService;
 
     @PostMapping("/{eventId}/evaluate")
@@ -52,6 +56,30 @@ public class DeliveryEventController {
                 processingService.getEvaluation(
                         companyId,
                         eventId
+                );
+
+        return ResponseEntity.ok(response);
+    }
+    @GetMapping
+    @PreAuthorize(
+            "hasAnyRole('COMPANY_ADMIN', 'OPERATIONS_OFFICER', 'RISK_REVIEWER')"
+    )
+    public ResponseEntity<DeliveryEventPageResponse> getEvents(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam EvaluationStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        UUID companyId = UUID.fromString(
+                jwt.getClaimAsString("companyId")
+        );
+
+        DeliveryEventPageResponse response =
+                queryService.getEvents(
+                        companyId,
+                        status,
+                        page,
+                        size
                 );
 
         return ResponseEntity.ok(response);
