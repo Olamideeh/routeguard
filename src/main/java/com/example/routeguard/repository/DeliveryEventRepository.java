@@ -2,6 +2,8 @@ package com.example.routeguard.repository;
 
 import com.example.routeguard.entity.DeliveryEvent;
 import org.springframework.data.jpa.repository.JpaRepository;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,5 +32,10 @@ public interface DeliveryEventRepository
             UUID companyId,
             String proofPhotoHash,
             UUID eventId
+    );
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<DeliveryEvent> findByIdAndCompany_Id(
+            UUID eventId,
+            UUID companyId
     );
 }
