@@ -1,0 +1,9 @@
+.git
+.idea
+.vscode
+.env
+*.log
+*.dump
+routeguard-schema*.sql
+startup-log.txt
+startup-clean-log.txt

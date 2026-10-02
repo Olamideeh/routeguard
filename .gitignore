@@ -35,3 +35,4 @@ build/
 /routeguard-schema*.sql
 /startup-log.txt
 /startup-clean-log.txt
+.env
